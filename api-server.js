@@ -3,6 +3,8 @@ const cors = require("cors");
 const morgan = require("morgan");
 const helmet = require("helmet");
 const authConfig = require("./src/auth_config.json");
+const jwt = require("express-jwt");
+const jwksRsa = require("jwks-rsa")
 
 const app = express();
 
@@ -16,6 +18,18 @@ if (!authConfig.domain || !authConfig.audience) {
   );
 }
 
+const authorizeAccessToken = jwt({
+  secret: jwksRsa.expressJwtSecret({
+    cache: true,
+    rateLimit: true,
+    jwksRequestsPerMinute: 5,
+    jwksUri: `https://${authConfig.domain}/.well-known/jwks.json`
+  }),
+  audience: authConfig.audience,
+  issuer: `https://${authConfig.domain}/`,
+  algorithms: ["RS256"]
+});
+
 app.use(morgan("dev"));
 app.use(helmet());
 app.use(cors({ origin: appOrigin }));
@@ -24,6 +38,12 @@ app.get("/api/public", (req, res) => {
   res.send({
     msg: "You called the public API!"
   });
+});
+
+app.get("/api/protected", authorizeAccessToken, (req, res) => {
+  res.send({
+    msg: "You called the protected API"
+  })
 });
 
 app.listen(port, () => console.log(`API Server listening on port ${port}`));
